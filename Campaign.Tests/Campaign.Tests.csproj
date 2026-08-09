@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Campaign.Core\Campaign.Core.csproj" />
+    <ProjectReference Include="..\Campaign.Infrastructure\Campaign.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

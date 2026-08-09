@@ -10,6 +10,29 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    # From this work package the tests need a real SQL Server: the invariants being tested are
+    # indexes and check constraints, and an in-memory provider does not enforce those.
+    services:
+      sql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: Developer
+          # Throwaway credential for a container that lives for the length of this job and is not
+          # reachable from outside the runner. The real one is in .env, which is not committed.
+          MSSQL_SA_PASSWORD: "Ci-Only-Password-1"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Ci-Only-Password-1' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 20s
+
+    env:
+      ConnectionStrings__Campaign: "Server=localhost,1433;Database=Campaign;User Id=sa;Password=Ci-Only-Password-1;TrustServerCertificate=True;Encrypt=False"
+
     steps:
       - uses: actions/checkout@v4
 

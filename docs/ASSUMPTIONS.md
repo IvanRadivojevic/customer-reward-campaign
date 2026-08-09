@@ -45,6 +45,35 @@ an empty reason.
 so storing that type avoids converting back and forth and losing the offset by accident. Calendar
 dates with business meaning stay `DateOnly`.
 
+## Persistence
+
+**Enumerations are stored as text.** This is not a matter of taste: the specification writes the
+filtered index as `WHERE Status='Active'` and the check constraint as `MatchStatus = 'Invalid'`, and
+both compare a value rather than an ordinal. Storing numbers would also make the report view and any
+SSRS query depend on a lookup nobody wrote down.
+
+**`Agents.ExternalUserId` carries a unique index that is not in the specification's index table.**
+The subject claim of a token has to identify exactly one agent, otherwise the lookup that turns a
+token into a record owner has no single answer. *If wrong:* the index is dropped and the lookup has
+to decide what two matching agents mean.
+
+**No foreign key cascades; every relationship is `Restrict`.** Business records are never deleted,
+so a delete that reaches these tables is a mistake and should fail rather than quietly take history
+with it.
+
+**Queries do not track changes by default.** Nothing in this API loads an entity in order to edit
+it - a void is a conditional update and a correction is a new record - so tracking would only cost
+memory and make a retried transaction harder to reason about.
+
+**Column sizes.** The specification fixes `char(64)` for the file hash, `char(3)` for the currency
+and 500 characters for the void reason. The rest are chosen here: 64 for external customer ids, 200
+for names, 100 for the idempotency key, 1000 for a row error, and unbounded for the raw CSV line,
+which is the only field whose length is decided by somebody else's file.
+
+**The seed writes one campaign and three agents, and nothing else.** The specification also lists an
+admin and an integration account, but neither is a row in `Agent` - they are token subjects, so they
+arrive with the development token endpoint rather than with the database.
+
 ## Import
 
 **`CompletedWithErrors` means the file contained rows that could not be read.** The specification

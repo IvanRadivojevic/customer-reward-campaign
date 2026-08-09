@@ -1,0 +1,17 @@
+# Brings up SQL Server only. The API is started with "dotnet run" so it can be debugged normally.
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: campaign-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      # Read from .env, which is not committed. Copy .env.example to .env before the first start.
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env first}
+    ports:
+      - "1433:1433"
+    volumes:
+      - campaign-sql-data:/var/opt/mssql
+
+volumes:
+  campaign-sql-data:

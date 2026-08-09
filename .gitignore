@@ -481,6 +481,9 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
+# Local container password for docker compose. Committed as .env.example instead.
+.env
+
 # Local working documents: the assignment text, the specification and the plan.
 # They are the input to the work, not part of the delivered solution.
 RADNI-DOGOVOR.md
