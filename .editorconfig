@@ -16,9 +16,11 @@ indent_size = 2
 trim_trailing_whitespace = false
 
 [*.cs]
-# Namespaces and using directives
+# Namespaces and using directives.
+# Using directives go inside the namespace on purpose: the Campaign entity shares its name with
+# the Campaign.* namespace prefix, and only this placement lets C# resolve `Campaign` to the type.
 csharp_style_namespace_declarations = file_scoped:warning
-csharp_using_directive_placement = outside_namespace:warning
+csharp_using_directive_placement = inside_namespace:warning
 dotnet_sort_system_directives_first = true
 
 # Expression preferences - close to the default templates, nothing exotic
