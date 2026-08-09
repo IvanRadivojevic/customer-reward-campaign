@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Campaign.Api references Campaign.Infrastructure only to register it in the DI container
+    (a single AddInfrastructure call in Program.cs). Controllers and use cases stay on Core types.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Campaign.Core\Campaign.Core.csproj" />
+    <ProjectReference Include="..\Campaign.Infrastructure\Campaign.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Deliberately empty. Campaign.Core holds entities, business rules, use cases and ports,
+    and carries no NuGet reference at all - no EF Core, no ASP.NET Core, no System.ServiceModel.
+    Everything else in this file comes from Directory.Build.props.
+  -->
+
+</Project>

@@ -1,0 +1,14 @@
+<Project>
+
+  <!--
+    Settings shared by every project in the solution, so that the target framework and the
+    compiler strictness are decided in one place instead of four .csproj files.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>
