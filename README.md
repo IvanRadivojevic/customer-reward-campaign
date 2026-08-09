@@ -15,6 +15,14 @@ The solution integrates an external SOAP customer directory with CSV purchase re
 Dependencies point one way only: `Api -> Infrastructure -> Core` and `Api -> Core`. Because
 `Campaign.Core` references nothing, the business rules can be tested without a database or a web host.
 
+## Customer directory
+
+Customer data comes from an external SOAP service through the `ICustomerDirectory` port. Two
+implementations exist and `Directory:Provider` picks one: `Soap` calls the real service, `InMemory`
+keeps the demo working when that service is down. A `DataverseCustomerDirectory` implementing the
+same port is how this solution would read customers from Dynamics 365, without a line changing in
+`Campaign.Core`.
+
 ## Database
 
 Docker runs SQL Server only; the API is started with `dotnet run` so it can be debugged normally.

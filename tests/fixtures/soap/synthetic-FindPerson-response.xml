@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC - not a recorded response of the live service.
+  Written by hand from the FindPerson contract in docs/soap/SOAP.Demo.wsdl: the element names,
+  their order and their namespaces come from that WSDL, the values are invented.
+  Note that Person carries no id of its own; the adapter reuses the id it asked for.
+-->
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xmlns:s="http://www.w3.org/2001/XMLSchema">
+  <SOAP-ENV:Body>
+    <FindPersonResponse xmlns="http://tempuri.org">
+      <FindPersonResult>
+        <Name>Ana Anic</Name>
+        <SSN>111-22-3333</SSN>
+        <DOB>1984-03-17</DOB>
+        <Home>
+          <Street>Knez Mihailova 1</Street>
+          <City>Belgrade</City>
+          <State>RS</State>
+          <Zip>11000</Zip>
+        </Home>
+        <Age>42</Age>
+      </FindPersonResult>
+    </FindPersonResponse>
+  </SOAP-ENV:Body>
+</SOAP-ENV:Envelope>

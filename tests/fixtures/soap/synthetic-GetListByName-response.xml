@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC - not a recorded response of the live service.
+  Written by hand from the GetListByName contract in docs/soap/SOAP.Demo.wsdl. The row type is
+  PersonIdentification, whose ID is declared as xs:string even though its values look numeric -
+  that is why the port and the DTO carry the customer id as a string.
+  The third row deliberately has an empty ID, to show what the adapter drops.
+-->
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xmlns:s="http://www.w3.org/2001/XMLSchema">
+  <SOAP-ENV:Body>
+    <GetListByNameResponse xmlns="http://tempuri.org">
+      <GetListByNameResult>
+        <PersonIdentification>
+          <ID>1</ID>
+          <Name>Ana Anic</Name>
+          <SSN>111-22-3333</SSN>
+          <DOB>1984-03-17</DOB>
+        </PersonIdentification>
+        <PersonIdentification>
+          <ID>7</ID>
+          <Name>Jelena Jelic</Name>
+          <SSN>444-55-6666</SSN>
+          <DOB>1991-11-02</DOB>
+        </PersonIdentification>
+        <PersonIdentification>
+          <ID></ID>
+          <Name>Row Without An Id</Name>
+          <SSN>777-88-9999</SSN>
+        </PersonIdentification>
+      </GetListByNameResult>
+    </GetListByNameResponse>
+  </SOAP-ENV:Body>
+</SOAP-ENV:Envelope>

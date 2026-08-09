@@ -45,6 +45,40 @@ an empty reason.
 so storing that type avoids converting back and forth and losing the offset by accident. Calendar
 dates with business meaning stay `DateOnly`.
 
+## Customer directory
+
+**The WSDL in `docs/soap/` is an Internet Archive snapshot, not a fresh download.** The public demo
+service was refusing connections while this package was built, so the contract came from the
+snapshot of 14 October 2025, which has the same content digest as the June 2025 one. Its
+`PersonIdentification` fields match what the service returned when it last answered.
+[`docs/soap/README.md`](soap/README.md) records the exact source. *If wrong:* the file is replaced
+with a fresh download and the client is regenerated; nothing else changes.
+
+**The fixtures in `tests/fixtures/soap/` are synthetic, and this is an agreed deviation.** The
+specification asks for two or three recorded real responses. The service was down and the Archive
+holds no recorded response for either operation used here, so the envelopes were written by hand
+from the contract in the WSDL - element names, order and namespaces taken from it, values invented.
+Every file says so in its first comment and carries `synthetic-` in its name. They are still
+load-bearing: the adapter tests parse them, so a fixture that drifts from the generated contract
+fails the build. *If wrong:* real envelopes are saved as `recorded-*.xml` and the tests point at
+them.
+
+**How the catalogue reports an unknown customer could not be verified.** With the service down there
+was no way to see whether an unknown id comes back as an empty `Person` or as a SOAP fault. The
+adapter treats a missing or nameless `Person` as "not found" and every fault as
+`DirectoryUnavailableException`. *If wrong:* if the service answers unknown ids with a fault, one
+branch is added that maps that particular fault to "not found" instead of to unavailable.
+
+**A SOAP fault is not retried, a dropped connection and a timeout are.** A fault means the service
+answered, so asking the same question twice more only wastes the caller's five seconds. *If wrong:*
+the predicate in `SoapCustomerDirectory` gains a case.
+
+**`System.Security.Cryptography.Xml` is pinned directly at 10.0.10.** It is not a new dependency:
+`System.ServiceModel.Primitives` pulls it transitively at 10.0.0, which carries eight high severity
+advisories. Three are fixed in 10.0.6 and five stay open through 10.0.9, so 10.0.10 is the first
+release outside all eight ranges. `dotnet list package` with the vulnerable switch reports nothing
+for any project. *If wrong:* the pin moves to whatever version the advisories name next.
+
 ## Persistence
 
 **Enumerations are stored as text.** This is not a matter of taste: the specification writes the

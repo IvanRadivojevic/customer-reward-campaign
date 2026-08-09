@@ -6,6 +6,20 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <PackageReference Include="Polly.Core" Version="8.7.0" />
+    <PackageReference Include="System.ServiceModel.Http" Version="10.0.652802" />
+    <PackageReference Include="System.ServiceModel.Primitives" Version="10.0.652802" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Not a new dependency: System.ServiceModel.Primitives pulls System.Security.Cryptography.Xml
+      10.0.0 transitively, and that version carries eight high severity advisories. Three of them are
+      fixed in 10.0.6, but five stay open through 10.0.9 (vulnerable range ">= 10.0.0, <= 10.0.9"),
+      so 10.0.10 is the first release outside all eight ranges. Naming it directly here lifts the
+      transitive version to the patched one; the NuGet vulnerability report is the check.
+    -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
   </ItemGroup>
 
 </Project>
