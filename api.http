@@ -1,0 +1,360 @@
+### Customer Reward Campaign — the demo, in order
+#
+# Run these from the top. Each request feeds the next, so no id is ever pasted by hand.
+# Works in Visual Studio, VS Code with the REST Client extension, and Rider.
+#
+# Before you start:
+#   docker compose up -d
+#   dotnet run --project Campaign.Api --urls http://localhost:5088
+#
+# Use Directory:Provider = InMemory unless the public SOAP service is answering; the customer search
+# in step 5 is the one call that depends on it.
+
+@host = http://localhost:5088
+
+###############################################################################
+# 1. The API is up. No token needed - this is the only endpoint besides the
+#    development login that does not ask for one.
+###############################################################################
+
+GET {{host}}/health
+
+###############################################################################
+# 2. Without a token everything else is 401 unauthenticated, in the same
+#    ProblemDetails shape every other refusal uses.
+###############################################################################
+
+GET {{host}}/api/v1/campaigns
+
+###############################################################################
+# 3. Sign in as an agent. This endpoint exists in Development only - outside it
+#    the controller is removed from the application and the route is a 404.
+###############################################################################
+
+# @name agentLogin
+POST {{host}}/api/v1/auth/token
+Content-Type: application/json
+
+{ "username": "agent-1", "password": "agent-1-password" }
+
+@agent = {{agentLogin.response.body.$.accessToken}}
+
+###############################################################################
+# 4. The campaigns this agent can work in. The seed writes one, running from
+#    three days ago to three days ahead.
+###############################################################################
+
+# @name campaigns
+GET {{host}}/api/v1/campaigns
+Authorization: Bearer {{agent}}
+
+@campaignId = {{campaigns.response.body.$[0].id}}
+
+###############################################################################
+# 5. Today's quota, before anything is awarded: used 0 of the campaign's limit.
+#    The businessDate in the answer is the campaign's time zone, not the
+#    caller's - the agent page uses it instead of guessing.
+###############################################################################
+
+# @name quotaBefore
+GET {{host}}/api/v1/agents/me/quota?campaignId={{campaignId}}
+Authorization: Bearer {{agent}}
+
+###############################################################################
+# 6. Find a customer in the external catalogue.
+###############################################################################
+
+GET {{host}}/api/v1/customers?name=Ana
+Authorization: Bearer {{agent}}
+
+###############################################################################
+# 7. Award the discount. Idempotency-Key is required.
+#    Expect 201 with a Location header.
+###############################################################################
+
+# @name firstGrant
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 11111111-aaaa-4aaa-8aaa-111111111111
+
+{ "customerExternalId": "1" }
+
+@grantId = {{firstGrant.response.body.$.id}}
+
+###############################################################################
+# 8. P-06: the same key and the same request again.
+#    Expect 200, header Idempotency-Replayed: true, and the same grant id.
+#    Nothing was created.
+###############################################################################
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 11111111-aaaa-4aaa-8aaa-111111111111
+
+{ "customerExternalId": "1" }
+
+###############################################################################
+# 9. P-06, the other half: the same key for a different customer.
+#    Expect 409 idempotency-key-reused. A key never hands back a grant somebody
+#    did not ask for.
+###############################################################################
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 11111111-aaaa-4aaa-8aaa-111111111111
+
+{ "customerExternalId": "2" }
+
+###############################################################################
+# 10. P-03: the same customer again under a new key.
+#     Expect 409 customer-already-rewarded, with the id of the grant that holds
+#     the customer in the body.
+###############################################################################
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 22222222-aaaa-4aaa-8aaa-222222222222
+
+{ "customerExternalId": "1" }
+
+###############################################################################
+# 11. Fill the day: four more customers, so the agent reaches the limit of five.
+###############################################################################
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 33333333-aaaa-4aaa-8aaa-333333333333
+
+{ "customerExternalId": "2" }
+
+###
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 44444444-aaaa-4aaa-8aaa-444444444444
+
+{ "customerExternalId": "3" }
+
+###
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 55555555-aaaa-4aaa-8aaa-555555555555
+
+{ "customerExternalId": "4" }
+
+###
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 66666666-aaaa-4aaa-8aaa-666666666666
+
+{ "customerExternalId": "5" }
+
+###############################################################################
+# 12. P-02: the sixth customer today.
+#     Expect 409 daily-limit-reached, with used and limit in the body.
+###############################################################################
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/grants
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+Idempotency-Key: 77777777-aaaa-4aaa-8aaa-777777777777
+
+{ "customerExternalId": "6" }
+
+###############################################################################
+# 13. The agent's own grants. An agent sees their own and nobody else's.
+###############################################################################
+
+GET {{host}}/api/v1/grants?campaignId={{campaignId}}
+Authorization: Bearer {{agent}}
+
+###############################################################################
+# 14. P-04 and P-05: void the first grant. Nothing is deleted; the record keeps
+#     the reason, the actor and the time. Expect 204.
+###############################################################################
+
+POST {{host}}/api/v1/grants/{{grantId}}/void
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+
+{ "reason": "wrong customer picked from the list" }
+
+###############################################################################
+# 15. Voiding it again. Expect 409 grant-already-voided - the conditional
+#     update changed no row, so somebody was there first.
+###############################################################################
+
+POST {{host}}/api/v1/grants/{{grantId}}/void
+Authorization: Bearer {{agent}}
+Content-Type: application/json
+
+{ "reason": "again" }
+
+###############################################################################
+# 16. The slot came back on its own: used is one lower than before the void.
+#     Nothing releases it - the count only counts active grants.
+###############################################################################
+
+GET {{host}}/api/v1/agents/me/quota?campaignId={{campaignId}}
+Authorization: Bearer {{agent}}
+
+###############################################################################
+# 17. An agent may not read the report. Expect 403 forbidden.
+###############################################################################
+
+GET {{host}}/api/v1/campaigns/{{campaignId}}/results?groupBy=agent
+Authorization: Bearer {{agent}}
+
+###############################################################################
+# 18. The integration account: a system account for the import, not a person.
+###############################################################################
+
+# @name integrationLogin
+POST {{host}}/api/v1/auth/token
+Content-Type: application/json
+
+{ "username": "integration-1", "password": "integration-1-password" }
+
+@integration = {{integrationLogin.response.body.$.accessToken}}
+
+###############################################################################
+# 19. The purchase report. One customer bought three times, and all three rows
+#     match one grant. Expect 200 with the summary - never 202.
+###############################################################################
+
+# @name cleanImport
+POST {{host}}/api/v1/campaigns/{{campaignId}}/imports
+Authorization: Bearer {{integration}}
+Content-Type: multipart/form-data; boundary=----CampaignBoundary
+
+------CampaignBoundary
+Content-Disposition: form-data; name="file"; filename="purchases-clean.csv"
+Content-Type: text/csv
+
+< ./samples/purchases-clean.csv
+------CampaignBoundary--
+
+@batchId = {{cleanImport.response.body.$.id}}
+
+###############################################################################
+# 20. P-08: the same file again. Expect 200, the same batch id, and
+#     alreadyImported: true. No second batch was made.
+###############################################################################
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/imports
+Authorization: Bearer {{integration}}
+Content-Type: multipart/form-data; boundary=----CampaignBoundary
+
+------CampaignBoundary
+Content-Disposition: form-data; name="file"; filename="purchases-clean.csv"
+Content-Type: text/csv
+
+< ./samples/purchases-clean.csv
+------CampaignBoundary--
+
+###############################################################################
+# 21. A deliberately dirty file: bad dates, an empty customer id, an unknown
+#     customer, an amount without a currency, a broken amount. Every row gets a
+#     status, the file runs to the end, and the three counts add up to
+#     rowsTotal. Status is CompletedWithErrors.
+###############################################################################
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/imports
+Authorization: Bearer {{integration}}
+Content-Type: multipart/form-data; boundary=----CampaignBoundary
+
+------CampaignBoundary
+Content-Disposition: form-data; name="file"; filename="purchases-dirty.csv"
+Content-Type: text/csv
+
+< ./samples/purchases-dirty.csv
+------CampaignBoundary--
+
+###############################################################################
+# 22. The batch of the clean file, row by row. An invalid row keeps its raw line
+#     and its reason and no parsed field at all.
+###############################################################################
+
+GET {{host}}/api/v1/imports/{{batchId}}
+Authorization: Bearer {{integration}}
+
+###############################################################################
+# 23. A file that is not a purchase report. Expect 400 csv-invalid - the whole
+#     file is refused, which is different from a row that cannot be read.
+###############################################################################
+
+POST {{host}}/api/v1/campaigns/{{campaignId}}/imports
+Authorization: Bearer {{integration}}
+Content-Type: multipart/form-data; boundary=----CampaignBoundary
+
+------CampaignBoundary
+Content-Disposition: form-data; name="file"; filename="not-a-report.csv"
+Content-Type: text/csv
+
+Nothing;To;See
+1;2;3
+------CampaignBoundary--
+
+###############################################################################
+# 24. The admin account, for the report.
+###############################################################################
+
+# @name adminLogin
+POST {{host}}/api/v1/auth/token
+Content-Type: application/json
+
+{ "username": "admin-1", "password": "admin-1-password" }
+
+@admin = {{adminLogin.response.body.$.accessToken}}
+
+###############################################################################
+# 25. P-09, grouped by agent. The customer who bought three times converted one
+#     grant: convertedGrants counts grants and matchedRows counts rows, so
+#     conversion cannot pass 100% even when matchedRows is the larger number.
+#     A voided grant is in neither the numerator nor the denominator.
+#     Every number comes from vw_CampaignResults, which SSRS can read too.
+###############################################################################
+
+GET {{host}}/api/v1/campaigns/{{campaignId}}/results?groupBy=agent
+Authorization: Bearer {{admin}}
+
+###############################################################################
+# 26. The same numbers grouped by business date. Same totals, different rows.
+###############################################################################
+
+GET {{host}}/api/v1/campaigns/{{campaignId}}/results?groupBy=day
+Authorization: Bearer {{admin}}
+
+###############################################################################
+# 27. The purchases that matched no active grant. Reported, never dropped in
+#     silence - this is the half of the report that says who bought without
+#     being rewarded.
+###############################################################################
+
+GET {{host}}/api/v1/campaigns/{{campaignId}}/unmatched-purchases
+Authorization: Bearer {{admin}}
+
+###############################################################################
+# 28. An unknown grouping. Expect 400 validation-failed.
+###############################################################################
+
+GET {{host}}/api/v1/campaigns/{{campaignId}}/results?groupBy=month
+Authorization: Bearer {{admin}}
+
+###############################################################################
+# 29. An unknown import batch. Expect 404 import-batch-not-found - its own type,
+#     not a grant's.
+###############################################################################
+
+GET {{host}}/api/v1/imports/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{integration}}

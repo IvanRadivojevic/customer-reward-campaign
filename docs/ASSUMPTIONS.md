@@ -45,6 +45,58 @@ an empty reason.
 so storing that type avoids converting back and forth and losing the offset by accident. Calendar
 dates with business meaning stay `DateOnly`.
 
+**A replay outranks the one-grant-per-customer rule when it is the same request.** Under load, twelve
+identical requests reach the customer check before any of them has written, so eleven of them would
+be told the customer is already rewarded - by their own grant. When the active grant belongs to this
+agent under this idempotency key, the answer is that grant with `Idempotency-Replayed: true`. P-06
+promises a repeated key never fails, and this is what makes that true rather than nearly true.
+*If wrong:* the branch in `CreateGrant` is removed and a concurrent double click gets a 409.
+
+**Whichever unique index reports the race, the key is asked about first.** Two identical requests
+violate both the customer index and the key index at the same moment, and which one SQL Server names
+in the error is not something an answer should depend on. *If wrong:* nothing; this only removes a
+dependency on an implementation detail of the database.
+
+## API and authorisation
+
+**A policy refusal is `forbidden` and an ownership refusal is `forbidden-agent-scope`.** Both are 403
+and both were originally the same type, which made them indistinguishable to a client. The catalogue
+now carries a generic `forbidden` for "your role does not cover this endpoint", raised by the
+authorisation layer, while the narrower type stays for the case it names: an agent reaching for a
+grant that belongs to somebody else, raised by the use case that knows whose it is.
+
+**The development login's account passwords are in the source.** The specification says the seed
+accounts have known passwords documented in the README, and that endpoint is removed from the
+application outside Development, so the routes do not exist there. The signing key is not in the
+source: it comes from User Secrets. *If wrong:* the accounts move to configuration.
+
+**`GET /api/v1/campaigns` exists because nothing else exposed a campaign id.** Every campaign-scoped
+route takes the id from the caller, so the agent page had no way to learn one without somebody
+pasting a GUID. The endpoint was added to the specification's endpoint table rather than assumed.
+
+**A file larger than the 10 MB limit is refused as `csv-invalid` (400), not 413.** The catalogue
+entry already covers a file that is empty, which is the same kind of judgement about size; adding a
+second entry for the other end of the range would say nothing new. *If wrong:* a
+`payload-too-large` entry is added and the controller maps to 413.
+
+**The parallel P-08 test fires ten simultaneous uploads, not twelve.** The working agreement asks for
+at least ten, and the import limiter allows ten a minute. Ten satisfies both; twelve would have two
+requests refused by the limiter working correctly, which would prove nothing about P-08.
+
+## Reporting
+
+**`matchedRows` counts the rows the import matched, whatever happened to the grant afterwards.** P-09
+keeps a voided grant out of the numerator and the denominator, and it does. Voiding a grant does not
+un-happen the purchase that was matched to it, so that row keeps counting - the two figures answer
+different questions, which is why the specification reports them side by side. A row imported *after*
+the grant was voided finds no active grant and stays `Unmatched`, so it never enters this count.
+
+**The conversion rate is divided outside the view.** The four counts are additive across agents and
+days, so the view can carry them at one grain and the endpoint can group them either way. A ratio is
+not additive - the rate for an agent is not the sum of their daily rates - so the division happens
+once, after grouping, in `GetCampaignResults`. The counting, which is the part that could drift,
+stays in SQL where SSRS reads it.
+
 ## Customer directory
 
 **The WSDL in `docs/soap/` is an Internet Archive snapshot, not a fresh download.** The public demo

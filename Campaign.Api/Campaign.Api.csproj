@@ -5,6 +5,10 @@
          documenting every public member is not the point, describing the API is. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <!-- Development secrets - the connection string and the signing key - live outside the
+         repository, in the per-user secret store this id points at. -->
+    <UserSecretsId>campaign-reward-api-8f2a41c6</UserSecretsId>
   </PropertyGroup>
 
   <!--
