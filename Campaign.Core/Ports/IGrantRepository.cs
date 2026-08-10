@@ -28,6 +28,15 @@ public interface IGrantRepository
     /// <summary>P-03: the active grant this customer already has in this campaign, across all agents.</summary>
     Task<RewardGrant?> FindActiveGrantForCustomerAsync(Guid campaignId, string customerExternalId, CancellationToken ct);
 
+    /// <summary>
+    /// P-02, first step: takes the agent's own row for update, so two requests from the same agent
+    /// queue up here on one stable row instead of meeting later as range locks over the grants they
+    /// are both about to count and insert. That later meeting is the deadlock - both holding a shared
+    /// range lock, both asking to turn it into an exclusive one - and this avoids it rather than
+    /// retrying it. Agents do not block each other: the row is different for each.
+    /// </summary>
+    Task LockAgentAsync(Guid agentId, CancellationToken ct);
+
     /// <summary>P-02: how many active grants the agent has already made on that business date.</summary>
     Task<int> CountActiveGrantsAsync(Guid agentId, Guid campaignId, DateOnly businessDate, CancellationToken ct);
 

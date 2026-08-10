@@ -18,7 +18,11 @@ public sealed class InMemoryCustomerDirectory : ICustomerDirectory
         new("5", "Dragana Dragic"),
         new("6", "Marko Markovic"),
         new("7", "Jelena Jelic"),
-        new("8", "Nikola Nikolic")
+        new("8", "Nikola Nikolic"),
+        new("9", "Sanja Sanic"),
+        new("10", "Milan Milic"),
+        new("11", "Tijana Tijanic"),
+        new("12", "Uros Urosevic")
     ];
 
     public Task<CustomerDto?> FindByIdAsync(string externalCustomerId, CancellationToken ct) =>

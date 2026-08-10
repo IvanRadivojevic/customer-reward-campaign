@@ -50,6 +50,9 @@ public sealed class FakeGrantRepository : IGrantRepository
             && string.Equals(grant.CustomerExternalId, customerExternalId, StringComparison.Ordinal)
             && grant.IsActive));
 
+    /// <summary>Nothing to lock in memory: these tests are about the rules, not about contention.</summary>
+    public Task LockAgentAsync(Guid agentId, CancellationToken ct) => Task.CompletedTask;
+
     public Task<int> CountActiveGrantsAsync(Guid agentId, Guid campaignId, DateOnly businessDate, CancellationToken ct) =>
         Task.FromResult(Grants.Count(grant =>
             grant.AgentId == agentId

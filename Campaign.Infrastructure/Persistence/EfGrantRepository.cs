@@ -37,6 +37,17 @@ public sealed class EfGrantRepository : IGrantRepository
                 && grant.Status == GrantStatus.Active,
             ct);
 
+    /// <summary>
+    /// UPDLOCK marks the row as being read with the intention to write, and two of those are not
+    /// compatible, so the second transaction waits here. HOLDLOCK keeps it until the transaction
+    /// ends. The row is the agent's own, which exists and does not move, so nothing about this
+    /// depends on how many grants happen to be in the table.
+    /// </summary>
+    public async Task LockAgentAsync(Guid agentId, CancellationToken ct) =>
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT Id FROM Agents WITH (UPDLOCK, HOLDLOCK) WHERE Id = {agentId}",
+            ct);
+
     public Task<int> CountActiveGrantsAsync(Guid agentId, Guid campaignId, DateOnly businessDate, CancellationToken ct) =>
         _db.RewardGrants.CountAsync(
             grant => grant.AgentId == agentId

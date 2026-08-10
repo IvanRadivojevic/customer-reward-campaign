@@ -107,9 +107,34 @@ public sealed class CreateGrant
                 DomainErrorCodes.CustomerNotFound,
                 "The customer catalogue does not know this customer.");
 
-        return await _unitOfWork.ExecuteInTransactionAsync(
+        try
+        {
+            return await CreateAsync(command, agent, campaign, businessDate, customer.Name, ct);
+        }
+        catch (DuplicateGrantException duplicate)
+        {
+            // Two requests passed the checks before either of them wrote, and the unique index
+            // decided between them. The loser reads what the winner left and answers accordingly -
+            // outside the transaction, which is already rolled back.
+            return await ResolveLostRaceAsync(duplicate, command, agent, ct);
+        }
+    }
+
+    private async Task<CreateGrantResult> CreateAsync(
+        CreateGrantCommand command,
+        Agent agent,
+        Domain.Campaign campaign,
+        DateOnly businessDate,
+        string customerNameAtGrant,
+        CancellationToken ct) =>
+        await _unitOfWork.ExecuteInTransactionAsync(
             async token =>
             {
+                // P-02, first step. Everything below reads and writes the grants of this one agent,
+                // so the requests of that agent are made to queue here, before any of them takes a
+                // lock on the grants themselves.
+                await _grants.LockAgentAsync(agent.Id, token);
+
                 // P-03.
                 var alreadyRewarded = await _grants.FindActiveGrantForCustomerAsync(
                     campaign.Id,
@@ -118,6 +143,18 @@ public sealed class CreateGrant
 
                 if (alreadyRewarded is not null)
                 {
+                    // If that grant is the one this very request already made, this is a replay and
+                    // P-06 outranks P-03: the caller is asking about their own grant, not competing
+                    // with somebody else for the customer.
+                    if (alreadyRewarded.AgentId == agent.Id
+                        && string.Equals(
+                            alreadyRewarded.IdempotencyKey,
+                            command.IdempotencyKey,
+                            StringComparison.Ordinal))
+                    {
+                        return new CreateGrantResult(alreadyRewarded, Replayed: true);
+                    }
+
                     throw new DomainRuleViolationException(
                         DomainErrorCodes.CustomerAlreadyRewarded,
                         "This customer already has an active grant in this campaign.",
@@ -143,7 +180,7 @@ public sealed class CreateGrant
                     campaign.Id,
                     agent.Id,
                     command.CustomerExternalId,
-                    customer.Name,
+                    customerNameAtGrant,
                     businessDate,
                     _businessDates.UtcNow(),
                     campaign.DiscountPercent,
@@ -155,5 +192,56 @@ public sealed class CreateGrant
                 return new CreateGrantResult(grant, Replayed: false);
             },
             ct);
+
+    /// <summary>
+    /// Answers a request that lost the race to the unique index. P-06 says a repeated key never
+    /// fails, so a lost race on the key is still a replay; P-03 says the customer already has a
+    /// grant, and the winner's id belongs in the answer.
+    /// </summary>
+    private async Task<CreateGrantResult> ResolveLostRaceAsync(
+        DuplicateGrantException duplicate,
+        CreateGrantCommand command,
+        Agent agent,
+        CancellationToken ct)
+    {
+        // The key is asked about first whichever index complained. Two identical requests violate
+        // both the customer index and the key index at once, and which one SQL Server reports is not
+        // something to build an answer on - while P-06 promises a repeated key never fails.
+        var existing = await _grants.FindByIdempotencyKeyAsync(agent.Id, command.IdempotencyKey, ct);
+        if (existing is not null)
+        {
+            var sameRequest = existing.CampaignId == command.CampaignId
+                && string.Equals(existing.CustomerExternalId, command.CustomerExternalId, StringComparison.Ordinal);
+
+            if (sameRequest)
+            {
+                return new CreateGrantResult(existing, Replayed: true);
+            }
+
+            throw new DomainRuleViolationException(
+                DomainErrorCodes.IdempotencyKeyReused,
+                "This idempotency key has already been used for a different grant.");
+        }
+
+        if (duplicate.Reason == DuplicateGrantReason.IdempotencyKeyAlreadyUsed)
+        {
+            throw new DomainRuleViolationException(
+                DomainErrorCodes.IdempotencyKeyReused,
+                "This idempotency key has already been used for a different grant.");
+        }
+
+        var winner = await _grants.FindActiveGrantForCustomerAsync(
+            command.CampaignId,
+            command.CustomerExternalId,
+            ct);
+
+        var details = winner is null
+            ? new Dictionary<string, object?>()
+            : new Dictionary<string, object?> { ["grantId"] = winner.Id };
+
+        throw new DomainRuleViolationException(
+            DomainErrorCodes.CustomerAlreadyRewarded,
+            "This customer already has an active grant in this campaign.",
+            details);
     }
 }

@@ -20,13 +20,16 @@ public static class DependencyInjection
     /// <summary>The SOAP catalogue is the real source; InMemory has to be asked for explicitly.</summary>
     private const string DefaultDirectoryProvider = "Soap";
 
+    /// <summary>
+    /// Every value is read when the service is resolved, not while it is being registered. That is
+    /// deliberate: a host that layers configuration on after the registrations - which is exactly
+    /// what the integration tests do - would otherwise be ignored, and the application would quietly
+    /// run against the wrong database or the wrong catalogue.
+    /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("Campaign")
-            ?? throw new InvalidOperationException(
-                "Connection string 'Campaign' is not configured. See appsettings.Example.json.");
-
-        services.AddDbContext<AppDbContext>(options => options.UseCampaignSqlServer(connectionString));
+        services.AddDbContext<AppDbContext>((_, options) =>
+            options.UseCampaignSqlServer(ConnectionString(configuration)));
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(provider => new BusinessDateProvider(
@@ -38,23 +41,27 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<DatabaseInitializer>();
 
-        AddCustomerDirectory(services, configuration);
+        services.AddScoped(_ => CreateCustomerDirectory(configuration));
 
         return services;
     }
 
+    private static string ConnectionString(IConfiguration configuration) =>
+        configuration.GetConnectionString("Campaign")
+        ?? throw new InvalidOperationException(
+            "Connection string 'Campaign' is not configured. See appsettings.Example.json.");
+
     /// <summary>
-    /// Directory:Provider decides which implementation of the port is registered. Everything above
-    /// this line, and every use case, is written against ICustomerDirectory and cannot tell.
+    /// Directory:Provider decides which implementation of the port answers. Every use case is written
+    /// against ICustomerDirectory and cannot tell which one it got.
     /// </summary>
-    private static void AddCustomerDirectory(IServiceCollection services, IConfiguration configuration)
+    private static ICustomerDirectory CreateCustomerDirectory(IConfiguration configuration)
     {
         var provider = configuration["Directory:Provider"] ?? DefaultDirectoryProvider;
 
         if (string.Equals(provider, "InMemory", StringComparison.OrdinalIgnoreCase))
         {
-            services.AddScoped<ICustomerDirectory, InMemoryCustomerDirectory>();
-            return;
+            return new InMemoryCustomerDirectory();
         }
 
         if (!string.Equals(provider, "Soap", StringComparison.OrdinalIgnoreCase))
@@ -65,7 +72,7 @@ public static class DependencyInjection
 
         // A factory, not an instance: each retry needs its own channel, because a WCF channel that
         // has failed once cannot be used again.
-        services.AddScoped<ICustomerDirectory>(_ => new SoapCustomerDirectory(CreateSoapClient));
+        return new SoapCustomerDirectory(CreateSoapClient);
     }
 
     /// <summary>

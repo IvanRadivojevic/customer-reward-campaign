@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
@@ -13,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Campaign.Core\Campaign.Core.csproj" />
     <ProjectReference Include="..\Campaign.Infrastructure\Campaign.Infrastructure.csproj" />
+    <ProjectReference Include="..\Campaign.Api\Campaign.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

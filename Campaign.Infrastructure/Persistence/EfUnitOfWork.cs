@@ -2,6 +2,8 @@ namespace Campaign.Infrastructure.Persistence;
 
 using System.Data;
 using Campaign.Core.Ports;
+using Campaign.Infrastructure.Persistence.Configurations;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>
@@ -44,5 +46,44 @@ public sealed class EfUnitOfWork : IUnitOfWork
             ct);
     }
 
-    public async Task SaveChangesAsync(CancellationToken ct) => await _db.SaveChangesAsync(ct);
+    public async Task SaveChangesAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException exception) when (RefusedAsDuplicate(exception) is { } reason)
+        {
+            throw new DuplicateGrantException(reason, exception);
+        }
+    }
+
+    /// <summary>
+    /// Translates the store's verdict into domain terms. The index names live in the entity
+    /// configuration, so this is the only place that has to know SQL Server reports a duplicate key
+    /// as error 2601 or 2627 and names the index in the message.
+    /// </summary>
+    private static DuplicateGrantReason? RefusedAsDuplicate(DbUpdateException exception)
+    {
+        const int duplicateKeyInIndex = 2601;
+        const int duplicateKeyInConstraint = 2627;
+
+        if (exception.InnerException is not SqlException sql
+            || (sql.Number != duplicateKeyInIndex && sql.Number != duplicateKeyInConstraint))
+        {
+            return null;
+        }
+
+        if (sql.Message.Contains(RewardGrantConfiguration.ActiveCustomerIndexName, StringComparison.Ordinal))
+        {
+            return DuplicateGrantReason.CustomerAlreadyRewarded;
+        }
+
+        if (sql.Message.Contains(RewardGrantConfiguration.IdempotencyKeyIndexName, StringComparison.Ordinal))
+        {
+            return DuplicateGrantReason.IdempotencyKeyAlreadyUsed;
+        }
+
+        return null;
+    }
 }

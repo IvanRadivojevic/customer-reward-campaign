@@ -1,5 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- Swagger publishes the XML comments as endpoint and schema descriptions. 1591 stays off:
+         documenting every public member is not the point, describing the API is. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
   <!--
     Campaign.Api references Campaign.Infrastructure only to register it in the DI container
     (a single AddInfrastructure call in Program.cs). Controllers and use cases stay on Core types.
@@ -13,6 +20,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
 
 </Project>

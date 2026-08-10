@@ -6,6 +6,12 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 internal sealed class RewardGrantConfiguration : IEntityTypeConfiguration<RewardGrant>
 {
+    /// <summary>P-03. Named here because the unit of work reads it back out of a SQL error message.</summary>
+    public const string ActiveCustomerIndexName = "UX_RewardGrants_Campaign_Customer_Active";
+
+    /// <summary>P-06, for the same reason.</summary>
+    public const string IdempotencyKeyIndexName = "UX_RewardGrants_Agent_IdempotencyKey";
+
     public void Configure(EntityTypeBuilder<RewardGrant> builder)
     {
         builder.ToTable("RewardGrants");
@@ -43,12 +49,12 @@ internal sealed class RewardGrantConfiguration : IEntityTypeConfiguration<Reward
         builder.HasIndex(grant => new { grant.CampaignId, grant.CustomerExternalId })
             .IsUnique()
             .HasFilter("[Status] = 'Active'")
-            .HasDatabaseName("UX_RewardGrants_Campaign_Customer_Active");
+            .HasDatabaseName(ActiveCustomerIndexName);
 
         // P-06: the same agent cannot use one idempotency key for two grants.
         builder.HasIndex(grant => new { grant.AgentId, grant.IdempotencyKey })
             .IsUnique()
-            .HasDatabaseName("UX_RewardGrants_Agent_IdempotencyKey");
+            .HasDatabaseName(IdempotencyKeyIndexName);
 
         // P-02: the exact shape of the COUNT the daily limit performs on every grant.
         builder.HasIndex(grant => new { grant.AgentId, grant.CampaignId, grant.BusinessDate, grant.Status })
