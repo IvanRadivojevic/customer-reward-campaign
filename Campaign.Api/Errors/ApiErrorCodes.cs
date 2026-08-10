@@ -20,8 +20,6 @@ public static class ApiErrorCodes
 
     public const string RateLimitExceeded = "rate-limit-exceeded";
 
-    public const string CsvInvalid = "csv-invalid";
-
     public const string DirectoryUnavailable = "directory-unavailable";
 
     /// <summary>How long a caller should wait before asking the catalogue again.</summary>
@@ -30,13 +28,14 @@ public static class ApiErrorCodes
     public static int StatusFor(string code) => code switch
     {
         DomainErrorCodes.ValidationFailed => StatusCodes.Status400BadRequest,
-        CsvInvalid => StatusCodes.Status400BadRequest,
+        DomainErrorCodes.CsvInvalid => StatusCodes.Status400BadRequest,
         Unauthenticated => StatusCodes.Status401Unauthorized,
         Forbidden => StatusCodes.Status403Forbidden,
         DomainErrorCodes.ForbiddenAgentScope => StatusCodes.Status403Forbidden,
         DomainErrorCodes.AgentNotActive => StatusCodes.Status403Forbidden,
         DomainErrorCodes.CustomerNotFound => StatusCodes.Status404NotFound,
         DomainErrorCodes.GrantNotFound => StatusCodes.Status404NotFound,
+        DomainErrorCodes.ImportBatchNotFound => StatusCodes.Status404NotFound,
         DomainErrorCodes.CampaignNotActive => StatusCodes.Status409Conflict,
         DomainErrorCodes.DailyLimitReached => StatusCodes.Status409Conflict,
         DomainErrorCodes.CustomerAlreadyRewarded => StatusCodes.Status409Conflict,

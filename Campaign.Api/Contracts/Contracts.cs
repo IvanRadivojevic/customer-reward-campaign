@@ -57,6 +57,71 @@ public sealed record QuotaResponse(
         new(quota.CampaignId, quota.AgentId, quota.BusinessDate, quota.Used, quota.Limit);
 }
 
+/// <summary>
+/// The summary of one processed purchase report. <see cref="AlreadyImported"/> is true when this
+/// exact file had already been imported into this campaign and no second batch was made.
+/// </summary>
+public sealed record ImportBatchResponse(
+    Guid Id,
+    Guid CampaignId,
+    string FileName,
+    string FileSha256,
+    DateTimeOffset UploadedAtUtc,
+    string UploadedBy,
+    int RowsTotal,
+    int RowsMatched,
+    int RowsUnmatched,
+    int RowsInvalid,
+    string Status,
+    bool AlreadyImported)
+{
+    public static ImportBatchResponse From(ImportBatch batch, bool alreadyImported) => new(
+        batch.Id,
+        batch.CampaignId,
+        batch.FileName,
+        batch.FileSha256,
+        batch.UploadedAtUtc,
+        batch.UploadedBy,
+        batch.RowsTotal,
+        batch.RowsMatched,
+        batch.RowsUnmatched,
+        batch.RowsInvalid,
+        batch.Status.ToString(),
+        alreadyImported);
+}
+
+/// <summary>One processed row, exactly as it was stored - including the ones that could not be read.</summary>
+public sealed record PurchaseRowResponse(
+    int RowNumber,
+    string MatchStatus,
+    string? CustomerExternalId,
+    DateOnly? PurchaseDate,
+    decimal? Amount,
+    string? Currency,
+    Guid? MatchedGrantId,
+    string? Error,
+    string RawLine)
+{
+    public static PurchaseRowResponse From(PurchaseResult row) => new(
+        row.RowNumber,
+        row.MatchStatus.ToString(),
+        row.CustomerExternalId,
+        row.PurchaseDate,
+        row.Amount,
+        row.Currency,
+        row.MatchedGrantId,
+        row.Error,
+        row.RawLine);
+}
+
+/// <summary>An import with the rows it produced.</summary>
+public sealed record ImportBatchDetailResponse(ImportBatchResponse Batch, IReadOnlyList<PurchaseRowResponse> Rows)
+{
+    public static ImportBatchDetailResponse From(ImportBatchView view) => new(
+        ImportBatchResponse.From(view.Batch, alreadyImported: false),
+        view.Rows.Select(PurchaseRowResponse.From).ToList());
+}
+
 /// <summary>A customer as the external catalogue knows them. Example: id 1, name "Ana Anic".</summary>
 public sealed record CustomerResponse(string ExternalId, string Name)
 {

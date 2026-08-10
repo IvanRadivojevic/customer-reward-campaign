@@ -56,20 +56,36 @@ public sealed class EfUnitOfWork : IUnitOfWork
         {
             throw new DuplicateGrantException(reason, exception);
         }
+        catch (DbUpdateException exception) when (RefusedAsDuplicateImport(exception))
+        {
+            throw new DuplicateImportBatchException(exception);
+        }
     }
+
+    /// <summary>P-08: the same file has already been imported into this campaign.</summary>
+    private static bool RefusedAsDuplicateImport(DbUpdateException exception) =>
+        DuplicateKey(exception) is { } sql
+        && sql.Message.Contains(ImportBatchConfiguration.FileHashIndexName, StringComparison.Ordinal);
 
     /// <summary>
     /// Translates the store's verdict into domain terms. The index names live in the entity
     /// configuration, so this is the only place that has to know SQL Server reports a duplicate key
     /// as error 2601 or 2627 and names the index in the message.
     /// </summary>
-    private static DuplicateGrantReason? RefusedAsDuplicate(DbUpdateException exception)
+    private static SqlException? DuplicateKey(DbUpdateException exception)
     {
         const int duplicateKeyInIndex = 2601;
         const int duplicateKeyInConstraint = 2627;
 
-        if (exception.InnerException is not SqlException sql
-            || (sql.Number != duplicateKeyInIndex && sql.Number != duplicateKeyInConstraint))
+        return exception.InnerException is SqlException sql
+            && (sql.Number == duplicateKeyInIndex || sql.Number == duplicateKeyInConstraint)
+                ? sql
+                : null;
+    }
+
+    private static DuplicateGrantReason? RefusedAsDuplicate(DbUpdateException exception)
+    {
+        if (DuplicateKey(exception) is not { } sql)
         {
             return null;
         }

@@ -18,6 +18,14 @@ public static class DomainErrorCodes
 
     public const string CustomerNotFound = "customer-not-found";
     public const string GrantNotFound = "grant-not-found";
+    public const string ImportBatchNotFound = "import-batch-not-found";
+
+    /// <summary>
+    /// The file cannot be read as a purchase report at all - empty, not a CSV, or missing a required
+    /// column. A single unreadable row is not this: that row becomes an Invalid result and the rest
+    /// of the file is still processed.
+    /// </summary>
+    public const string CsvInvalid = "csv-invalid";
     public const string CampaignNotActive = "campaign-not-active";
     public const string DailyLimitReached = "daily-limit-reached";
     public const string CustomerAlreadyRewarded = "customer-already-rewarded";

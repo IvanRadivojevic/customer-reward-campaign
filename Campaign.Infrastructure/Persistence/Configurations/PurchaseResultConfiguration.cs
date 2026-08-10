@@ -31,13 +31,13 @@ internal sealed class PurchaseResultConfiguration : IEntityTypeConfiguration<Pur
             .IsRequired();
 
         builder.Property(row => row.CustomerExternalId)
-            .HasMaxLength(64);
+            .HasMaxLength(PurchaseResult.MaxCustomerExternalIdLength);
 
         builder.Property(row => row.Amount)
             .HasPrecision(18, 2);
 
         builder.Property(row => row.Currency)
-            .HasColumnType("char(3)");
+            .HasColumnType($"char({PurchaseResult.CurrencyCodeLength})");
 
         builder.Property(row => row.MatchStatus)
             .HasConversion<string>()
@@ -45,7 +45,7 @@ internal sealed class PurchaseResultConfiguration : IEntityTypeConfiguration<Pur
             .IsRequired();
 
         builder.Property(row => row.Error)
-            .HasMaxLength(1000);
+            .HasMaxLength(PurchaseResult.MaxErrorLength);
 
         builder.HasOne<ImportBatch>()
             .WithMany()

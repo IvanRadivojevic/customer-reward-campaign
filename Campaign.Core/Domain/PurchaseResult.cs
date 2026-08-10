@@ -9,6 +9,18 @@ public sealed class PurchaseResult
 {
     public const int CurrencyCodeLength = 3;
 
+    public const int MaxCustomerExternalIdLength = 64;
+
+    public const int MaxErrorLength = 1000;
+
+    /// <summary>
+    /// What decimal(18,2) holds. A file is somebody else's output, so a number too large for the
+    /// column has to become an invalid row rather than an exception that loses the whole import.
+    /// </summary>
+    public const decimal MaxAmount = 9_999_999_999_999_999.99m;
+
+    public const decimal MinAmount = -9_999_999_999_999_999.99m;
+
     private PurchaseResult(
         Guid id,
         Guid batchId,
@@ -128,6 +140,13 @@ public sealed class PurchaseResult
                 "An invalid row has to say why it is invalid.");
         }
 
+        // The reason quotes what was in the file, and what was in the file has no length limit. It is
+        // shortened here rather than refused: losing the tail of a message must not lose the row.
+        if (error.Length > MaxErrorLength)
+        {
+            error = error[..MaxErrorLength];
+        }
+
         return new PurchaseResult(
             id,
             batchId,
@@ -149,6 +168,20 @@ public sealed class PurchaseResult
             throw new DomainRuleViolationException(
                 DomainErrorCodes.ValidationFailed,
                 "A row that is not invalid has to carry a customer external id.");
+        }
+
+        if (customerExternalId.Length > MaxCustomerExternalIdLength)
+        {
+            throw new DomainRuleViolationException(
+                DomainErrorCodes.ValidationFailed,
+                $"Customer external id cannot be longer than {MaxCustomerExternalIdLength} characters.");
+        }
+
+        if (amount is { } value && (value > MaxAmount || value < MinAmount))
+        {
+            throw new DomainRuleViolationException(
+                DomainErrorCodes.ValidationFailed,
+                "Amount is outside the range the column can store.");
         }
 
         // Amount and currency are optional by design, but they travel as a pair: an amount without

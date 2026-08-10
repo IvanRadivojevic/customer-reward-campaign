@@ -30,6 +30,8 @@ builder.Services.AddScoped<CreateGrant>();
 builder.Services.AddScoped<VoidGrant>();
 builder.Services.AddScoped<GetQuota>();
 builder.Services.AddScoped<ListGrants>();
+builder.Services.AddScoped<ImportPurchases>();
+builder.Services.AddScoped<GetImportBatch>();
 
 builder.Services.AddScoped<ICallerContext, ClaimsCallerContext>();
 builder.Services.AddScoped<DevelopmentTokenIssuer>();

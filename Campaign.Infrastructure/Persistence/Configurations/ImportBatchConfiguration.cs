@@ -6,6 +6,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 internal sealed class ImportBatchConfiguration : IEntityTypeConfiguration<ImportBatch>
 {
+    /// <summary>P-08. Named here because the unit of work reads it back out of a SQL error message.</summary>
+    public const string FileHashIndexName = "UX_ImportBatches_Campaign_FileSha256";
+
     public void Configure(EntityTypeBuilder<ImportBatch> builder)
     {
         builder.ToTable("ImportBatches");
@@ -33,7 +36,7 @@ internal sealed class ImportBatchConfiguration : IEntityTypeConfiguration<Import
         // rule itself, which is why the import attempts the insert instead of asking first.
         builder.HasIndex(batch => new { batch.CampaignId, batch.FileSha256 })
             .IsUnique()
-            .HasDatabaseName("UX_ImportBatches_Campaign_FileSha256");
+            .HasDatabaseName(FileHashIndexName);
 
         builder.HasOne<Campaign>()
             .WithMany()

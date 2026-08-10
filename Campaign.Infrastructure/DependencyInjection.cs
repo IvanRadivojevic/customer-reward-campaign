@@ -2,6 +2,7 @@ namespace Campaign.Infrastructure;
 
 using Campaign.Core.Domain;
 using Campaign.Core.Ports;
+using Campaign.Infrastructure.Import;
 using Campaign.Infrastructure.Persistence;
 using Campaign.Infrastructure.Soap;
 using Campaign.Infrastructure.Soap.Generated;
@@ -42,6 +43,23 @@ public static class DependencyInjection
         services.AddScoped<DatabaseInitializer>();
 
         services.AddScoped(_ => CreateCustomerDirectory(configuration));
+
+        // Import:ColumnMap lets the operator's column names differ from ours without a code change.
+        // Read key by key rather than bound as an object, so no configuration binder package is needed.
+        services.AddSingleton(_ =>
+        {
+            var defaults = new ImportColumnMap();
+
+            return new ImportColumnMap
+            {
+                CustomerId = configuration["Import:ColumnMap:CustomerId"] ?? defaults.CustomerId,
+                PurchaseDate = configuration["Import:ColumnMap:PurchaseDate"] ?? defaults.PurchaseDate,
+                Amount = configuration["Import:ColumnMap:Amount"] ?? defaults.Amount,
+                Currency = configuration["Import:ColumnMap:Currency"] ?? defaults.Currency
+            };
+        });
+
+        services.AddScoped<IPurchaseFileReader, CsvPurchaseFileReader>();
 
         return services;
     }
