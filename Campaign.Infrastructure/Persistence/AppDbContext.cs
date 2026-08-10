@@ -1,6 +1,7 @@
 namespace Campaign.Infrastructure.Persistence;
 
 using Campaign.Core.Domain;
+using Campaign.Core.Ports;
 using Microsoft.EntityFrameworkCore;
 
 public sealed class AppDbContext : DbContext
@@ -19,6 +20,9 @@ public sealed class AppDbContext : DbContext
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
     public DbSet<PurchaseResult> PurchaseResults => Set<PurchaseResult>();
+
+    /// <summary>The campaign results view. Read only: the counting happens in SQL, not here.</summary>
+    public DbSet<CampaignResultRow> CampaignResults => Set<CampaignResultRow>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

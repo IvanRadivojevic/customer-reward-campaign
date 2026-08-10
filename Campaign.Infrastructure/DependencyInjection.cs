@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IGrantRepository, EfGrantRepository>();
         services.AddScoped<IImportRepository, EfImportRepository>();
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+        services.AddScoped<IReportRepository, EfReportRepository>();
         services.AddScoped<DatabaseInitializer>();
 
         services.AddScoped(_ => CreateCustomerDirectory(configuration));

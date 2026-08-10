@@ -122,6 +122,53 @@ public sealed record ImportBatchDetailResponse(ImportBatchResponse Batch, IReadO
         view.Rows.Select(PurchaseRowResponse.From).ToList());
 }
 
+/// <summary>
+/// The campaign report. Every number is read from the vw_CampaignResults view; conversionRate is
+/// convertedGrants over activeGrants, so it cannot pass 100%.
+/// </summary>
+public sealed record CampaignResultsResponse(
+    Guid CampaignId,
+    ResultTotalsResponse Totals,
+    IReadOnlyList<ResultRowResponse> Rows)
+{
+    public static CampaignResultsResponse From(CampaignResultsView view) => new(
+        view.CampaignId,
+        new ResultTotalsResponse(
+            view.Totals.ActiveGrants,
+            view.Totals.VoidedGrants,
+            view.Totals.ConvertedGrants,
+            view.Totals.MatchedRows,
+            view.Totals.ConversionRate),
+        view.Rows.Select(ResultRowResponse.From).ToList());
+}
+
+public sealed record ResultTotalsResponse(
+    int ActiveGrants,
+    int VoidedGrants,
+    int ConvertedGrants,
+    int MatchedRows,
+    decimal ConversionRate);
+
+/// <summary>One group: an agent, or a business date, depending on groupBy.</summary>
+public sealed record ResultRowResponse(
+    string Key,
+    string DisplayName,
+    int ActiveGrants,
+    int VoidedGrants,
+    int ConvertedGrants,
+    int MatchedRows,
+    decimal ConversionRate)
+{
+    public static ResultRowResponse From(ResultGroup group) => new(
+        group.Key,
+        group.DisplayName,
+        group.ActiveGrants,
+        group.VoidedGrants,
+        group.ConvertedGrants,
+        group.MatchedRows,
+        group.ConversionRate);
+}
+
 /// <summary>A customer as the external catalogue knows them. Example: id 1, name "Ana Anic".</summary>
 public sealed record CustomerResponse(string ExternalId, string Name)
 {

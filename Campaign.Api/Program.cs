@@ -32,6 +32,8 @@ builder.Services.AddScoped<GetQuota>();
 builder.Services.AddScoped<ListGrants>();
 builder.Services.AddScoped<ImportPurchases>();
 builder.Services.AddScoped<GetImportBatch>();
+builder.Services.AddScoped<GetCampaignResults>();
+builder.Services.AddScoped<GetUnmatchedPurchases>();
 
 builder.Services.AddScoped<ICallerContext, ClaimsCallerContext>();
 builder.Services.AddScoped<DevelopmentTokenIssuer>();
