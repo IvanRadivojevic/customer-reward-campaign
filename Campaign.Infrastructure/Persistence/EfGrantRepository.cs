@@ -13,6 +13,9 @@ public sealed class EfGrantRepository : IGrantRepository
         _db = db;
     }
 
+    public async Task<IReadOnlyList<Campaign>> ListCampaignsAsync(CancellationToken ct) =>
+        await _db.Campaigns.OrderBy(campaign => campaign.StartDate).ThenBy(campaign => campaign.Name).ToListAsync(ct);
+
     public Task<Campaign?> FindCampaignAsync(Guid campaignId, CancellationToken ct) =>
         _db.Campaigns.FirstOrDefaultAsync(campaign => campaign.Id == campaignId, ct);
 

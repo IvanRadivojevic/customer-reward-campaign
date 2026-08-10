@@ -18,6 +18,9 @@ public interface IGrantRepository
 {
     Task<Domain.Campaign?> FindCampaignAsync(Guid campaignId, CancellationToken ct);
 
+    /// <summary>Every campaign, so the agent form can offer them instead of asking for a GUID.</summary>
+    Task<IReadOnlyList<Domain.Campaign>> ListCampaignsAsync(CancellationToken ct);
+
     Task<Agent?> FindAgentByExternalUserIdAsync(string externalUserId, CancellationToken ct);
 
     Task<RewardGrant?> FindByIdAsync(Guid grantId, CancellationToken ct);

@@ -27,6 +27,9 @@ public sealed class FakeGrantRepository : IGrantRepository
         return this;
     }
 
+    public Task<IReadOnlyList<Campaign>> ListCampaignsAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Campaign>>(_campaigns.Values.ToList());
+
     public Task<Campaign?> FindCampaignAsync(Guid campaignId, CancellationToken ct) =>
         Task.FromResult(_campaigns.GetValueOrDefault(campaignId));
 

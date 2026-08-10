@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customer Reward Campaign</title>
+<style>
+  /* No build step and no package manager: one file, plain CSS, plain fetch. The goal is a demo that
+     runs in a browser, not something that looks like a product. */
+  :root { --line: #d6d9de; --ink: #1d2125; --muted: #5b6470; --bad: #b3261e; --good: #1b6b3a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; font: 15px/1.5 system-ui, sans-serif; color: var(--ink); background: #f6f7f9; }
+  main { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  section { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input, select, button { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  button { cursor: pointer; background: #1d2125; color: #fff; border-color: #1d2125; }
+  button.secondary { background: #fff; color: var(--ink); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .row > div { flex: 1 1 180px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  th { color: var(--muted); font-weight: 600; }
+  .quota { font-size: 26px; font-weight: 600; }
+  .quota small { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .note { color: var(--muted); font-size: 13px; }
+  #status { padding: 10px 12px; border-radius: 6px; margin-bottom: 16px; display: none; }
+  #status.error { display: block; background: #fdecea; color: var(--bad); }
+  #status.ok { display: block; background: #e8f4ec; color: var(--good); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Customer Reward Campaign</h1>
+  <p class="note">Agent form. Everything below goes through the same public API, with a bearer token.</p>
+
+  <div id="status"></div>
+
+  <section id="login">
+    <h2>Sign in</h2>
+    <div class="row">
+      <div><label for="username">Account</label><input id="username" value="agent-1" autocomplete="username"></div>
+      <div><label for="password">Password</label><input id="password" type="password" value="agent-1-password" autocomplete="current-password"></div>
+      <div style="flex:0 0 auto"><button id="signIn">Sign in</button></div>
+    </div>
+    <p class="note">Development accounts: agent-1..3, admin-1, integration-1 — each with <code>&lt;account&gt;-password</code>.</p>
+  </section>
+
+  <section id="workspace" class="hidden">
+    <h2>Campaign</h2>
+    <div class="row">
+      <div><label for="campaign">Campaign</label><select id="campaign"></select></div>
+      <div style="flex:0 0 auto"><button class="secondary" id="signOut">Sign out</button></div>
+    </div>
+    <p class="note" id="who"></p>
+  </section>
+
+  <section id="agentArea" class="hidden">
+    <h2>Today</h2>
+    <p class="quota"><span id="quota">–</span> <small id="quotaDate"></small></p>
+
+    <h2 style="margin-top:20px">Find a customer</h2>
+    <div class="row">
+      <div><label for="search">Name</label><input id="search" placeholder="Ana"></div>
+      <div style="flex:0 0 auto"><button id="doSearch">Search</button></div>
+    </div>
+    <table id="customers" class="hidden">
+      <thead><tr><th>Id</th><th>Name</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h2 style="margin-top:24px">Today's grants</h2>
+    <div class="row">
+      <div><label for="reason">Reason used when voiding</label><input id="reason" value="wrong customer"></div>
+    </div>
+    <table id="grants">
+      <thead><tr><th>Customer</th><th>Name at grant</th><th>Discount</th><th>Status</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Only an admin token may read this endpoint, so an agent never sees the button. -->
+  <section id="adminArea" class="hidden">
+    <h2>Results</h2>
+    <div class="row">
+      <div><label for="groupBy">Group by</label><select id="groupBy"><option value="agent">Agent</option><option value="day">Day</option></select></div>
+      <div style="flex:0 0 auto"><button id="loadResults">Load</button></div>
+    </div>
+    <table id="results" class="hidden">
+      <thead><tr><th>Key</th><th>Active</th><th>Voided</th><th>Converted</th><th>Matched rows</th><th>Conversion</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="note" id="totals"></p>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const state = { token: null, role: null, subject: null, businessDate: null };
+const $ = id => document.getElementById(id);
+
+function say(message, kind) {
+  const box = $("status");
+  box.textContent = message;
+  box.className = kind;
+}
+
+/** Every call carries the token; every refusal arrives as ProblemDetails and is shown as it came. */
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: { ...(options.headers || {}), Authorization: `Bearer ${state.token}` }
+  });
+
+  if (response.ok) {
+    return response.status === 204 ? null : response.json();
+  }
+
+  let detail = `${response.status} ${response.statusText}`;
+  try {
+    const problem = await response.json();
+    if (problem.type) { detail = `${problem.type} — ${problem.detail ?? ""}`; }
+  } catch { /* an empty body is still an error */ }
+
+  throw new Error(detail);
+}
+
+async function signIn() {
+  const response = await fetch("/api/v1/auth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: $("username").value, password: $("password").value })
+  });
+
+  if (!response.ok) { throw new Error("Sign in failed: unknown account or wrong password."); }
+
+  const token = await response.json();
+  state.token = token.accessToken;
+  state.role = token.role;
+  state.subject = $("username").value;
+
+  $("login").classList.add("hidden");
+  $("workspace").classList.remove("hidden");
+  $("who").textContent = `Signed in as ${state.subject} (${state.role}).`;
+
+  // The results table belongs to an admin token; an agent would only get a 403 from that endpoint.
+  $("agentArea").classList.toggle("hidden", state.role !== "agent");
+  $("adminArea").classList.toggle("hidden", state.role !== "admin");
+
+  await loadCampaigns();
+}
+
+async function loadCampaigns() {
+  const campaigns = await api("/api/v1/campaigns");
+  const select = $("campaign");
+  select.innerHTML = "";
+
+  for (const campaign of campaigns) {
+    const option = document.createElement("option");
+    option.value = campaign.id;
+    option.textContent = `${campaign.name} — ${campaign.startDate} to ${campaign.endDate} (${campaign.status})`;
+    select.append(option);
+  }
+
+  if (campaigns.length && state.role === "agent") { await refreshAgentView(); }
+}
+
+async function refreshAgentView() {
+  const quota = await api(`/api/v1/agents/me/quota?campaignId=${$("campaign").value}`);
+  state.businessDate = quota.businessDate;
+
+  $("quota").textContent = `${quota.used} / ${quota.limit}`;
+  $("quotaDate").textContent = `used today (${quota.businessDate})`;
+
+  await loadGrants();
+}
+
+/** The business date comes from the quota answer, so the page never guesses a time zone. */
+async function loadGrants() {
+  const grants = await api(
+    `/api/v1/grants?campaignId=${$("campaign").value}&businessDate=${state.businessDate}`);
+
+  const body = $("grants").querySelector("tbody");
+  body.innerHTML = "";
+
+  for (const grant of grants) {
+    const row = body.insertRow();
+    row.insertCell().textContent = grant.customerExternalId;
+    row.insertCell().textContent = grant.customerNameAtGrant;
+    row.insertCell().textContent = `${grant.discountPercent}%`;
+    row.insertCell().textContent = grant.status;
+
+    const actions = row.insertCell();
+    if (grant.status === "Active") {
+      const button = document.createElement("button");
+      button.className = "secondary";
+      button.textContent = "Void";
+      button.onclick = () => run(() => voidGrant(grant.id));
+      actions.append(button);
+    }
+  }
+}
+
+async function search() {
+  const name = $("search").value.trim();
+  if (!name) { throw new Error("Type a name to search for."); }
+
+  const customers = await api(`/api/v1/customers?name=${encodeURIComponent(name)}`);
+  const table = $("customers");
+  const body = table.querySelector("tbody");
+  body.innerHTML = "";
+  table.classList.toggle("hidden", customers.length === 0);
+
+  for (const customer of customers) {
+    const row = body.insertRow();
+    row.insertCell().textContent = customer.externalId;
+    row.insertCell().textContent = customer.name;
+
+    const button = document.createElement("button");
+    button.textContent = "Award discount";
+
+    // One key per button, made here and kept. Every attempt on this button is the same request, so
+    // a repeat is answered with the grant that already exists instead of a second one. A new search
+    // builds new buttons with new keys, which is how a fresh grant is made after a void.
+    button.dataset.idempotencyKey = crypto.randomUUID();
+    button.onclick = () => award(button, customer.externalId);
+    row.insertCell().append(button);
+  }
+
+  if (!customers.length) { say("Nobody in the catalogue matches that name.", "ok"); }
+}
+
+/**
+ * The button is disabled synchronously, before anything is awaited, so a second click cannot start a
+ * second request with a second key. A failed attempt hands the button back but keeps its key: the
+ * retry is then the same request, which the API answers with the grant that already exists.
+ */
+function award(button, customerExternalId) {
+  if (button.disabled) { return; }
+  button.disabled = true;
+
+  run(async () => {
+    try {
+      await sendGrant(button.dataset.idempotencyKey, customerExternalId);
+    } catch (error) {
+      button.disabled = false;
+      throw error;
+    }
+
+    button.textContent = "Awarded";
+    await refreshAgentView();
+  });
+}
+
+async function sendGrant(idempotencyKey, customerExternalId) {
+  const response = await fetch(`/api/v1/campaigns/${$("campaign").value}/grants`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${state.token}`,
+      "Idempotency-Key": idempotencyKey
+    },
+    body: JSON.stringify({ customerExternalId })
+  });
+
+  if (!response.ok) {
+    const problem = await response.json().catch(() => ({}));
+    throw new Error(`${problem.type ?? response.status} — ${problem.detail ?? response.statusText}`);
+  }
+
+  const replayed = response.headers.get("Idempotency-Replayed") === "true";
+  say(replayed ? "That grant already existed; nothing was created." : "Discount awarded.", "ok");
+}
+
+async function voidGrant(grantId) {
+  await api(`/api/v1/grants/${grantId}/void`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason: $("reason").value })
+  });
+
+  say("Grant voided. The slot it held is free again.", "ok");
+  await refreshAgentView();
+}
+
+async function loadResults() {
+  const report = await api(
+    `/api/v1/campaigns/${$("campaign").value}/results?groupBy=${$("groupBy").value}`);
+
+  const table = $("results");
+  const body = table.querySelector("tbody");
+  body.innerHTML = "";
+  table.classList.remove("hidden");
+
+  for (const row of report.rows) {
+    const line = body.insertRow();
+    line.insertCell().textContent = row.displayName || row.key;
+    line.insertCell().textContent = row.activeGrants;
+    line.insertCell().textContent = row.voidedGrants;
+    line.insertCell().textContent = row.convertedGrants;
+    line.insertCell().textContent = row.matchedRows;
+    line.insertCell().textContent = percent(row.conversionRate);
+  }
+
+  const totals = report.totals;
+  $("totals").textContent =
+    `Totals: ${totals.activeGrants} active, ${totals.voidedGrants} voided, ` +
+    `${totals.convertedGrants} converted from ${totals.matchedRows} matched rows, ` +
+    `conversion ${percent(totals.conversionRate)}.`;
+}
+
+const percent = rate => `${(rate * 100).toFixed(2)}%`;
+
+/** One place that turns a rejected promise into a message, so no handler needs its own try block. */
+function run(action) {
+  say("", "");
+  action().catch(error => say(error.message, "error"));
+}
+
+$("signIn").onclick = () => run(signIn);
+$("signOut").onclick = () => location.reload();
+$("doSearch").onclick = () => run(search);
+$("campaign").onchange = () => run(async () => { if (state.role === "agent") { await refreshAgentView(); } });
+$("loadResults").onclick = () => run(loadResults);
+$("search").addEventListener("keydown", event => { if (event.key === "Enter") { run(search); } });
+</script>
+</body>
+</html>

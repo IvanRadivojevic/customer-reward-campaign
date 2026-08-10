@@ -21,6 +21,7 @@ public static class CampaignPolicies
     public const string CanVoidGrant = nameof(CanVoidGrant);
     public const string CanImport = nameof(CanImport);
     public const string CanViewReports = nameof(CanViewReports);
+    public const string CanReadCampaigns = nameof(CanReadCampaigns);
     public const string CanReadCustomers = nameof(CanReadCustomers);
     public const string CanReadGrants = nameof(CanReadGrants);
 }

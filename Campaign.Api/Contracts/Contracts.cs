@@ -15,6 +15,26 @@ public sealed record CreateGrantRequest(string CustomerExternalId);
 /// <param name="Reason">Free text, at most 500 characters.</param>
 public sealed record VoidGrantRequest(string? Reason);
 
+/// <summary>A campaign as the form needs it: enough to choose one and to show its window.</summary>
+public sealed record CampaignResponse(
+    Guid Id,
+    string Name,
+    DateOnly StartDate,
+    DateOnly EndDate,
+    int DailyLimitPerAgent,
+    decimal DiscountPercent,
+    string Status)
+{
+    public static CampaignResponse From(Campaign campaign) => new(
+        campaign.Id,
+        campaign.Name,
+        campaign.StartDate,
+        campaign.EndDate,
+        campaign.DailyLimitPerAgent,
+        campaign.DiscountPercent,
+        campaign.Status.ToString());
+}
+
 /// <summary>A grant as the API publishes it - deliberately not the entity.</summary>
 public sealed record GrantResponse(
     Guid Id,

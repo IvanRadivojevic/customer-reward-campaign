@@ -30,6 +30,7 @@ builder.Services.AddScoped<CreateGrant>();
 builder.Services.AddScoped<VoidGrant>();
 builder.Services.AddScoped<GetQuota>();
 builder.Services.AddScoped<ListGrants>();
+builder.Services.AddScoped<ListCampaigns>();
 builder.Services.AddScoped<ImportPurchases>();
 builder.Services.AddScoped<GetImportBatch>();
 builder.Services.AddScoped<GetCampaignResults>();
@@ -117,6 +118,12 @@ else
 }
 
 app.UseHttpsRedirection();
+
+// The agent form is served from this application, which is why there is no CORS anywhere: same
+// origin. Static files come before authentication, so the page itself loads without a token and then
+// asks for one.
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 // Authentication first, so the rate limiter can count per token rather than per connection.
 app.UseAuthentication();

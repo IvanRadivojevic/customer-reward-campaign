@@ -94,6 +94,9 @@ public static class AuthenticationExtensions
             options.AddPolicy(CampaignPolicies.CanVoidGrant, policy =>
                 policy.RequireRole(CampaignRoles.Agent, CampaignRoles.Admin));
 
+            options.AddPolicy(CampaignPolicies.CanReadCampaigns, policy =>
+                policy.RequireRole(CampaignRoles.Agent, CampaignRoles.Admin));
+
             options.AddPolicy(CampaignPolicies.CanReadCustomers, policy =>
                 policy.RequireRole(CampaignRoles.Agent, CampaignRoles.Admin));
 
