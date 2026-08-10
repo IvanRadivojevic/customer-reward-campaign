@@ -5,6 +5,7 @@ using Campaign.Api.Contracts;
 using Campaign.Api.Errors;
 using Campaign.Core.Domain;
 using Campaign.Core.UseCases;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -39,6 +40,7 @@ public sealed class GrantsController : ControllerBase
     /// grant. The same key used for a different customer or campaign is refused.
     /// </remarks>
     [HttpPost("campaigns/{campaignId:guid}/grants")]
+    [Authorize(Policy = CampaignPolicies.CanCreateGrant)]
     [ProducesResponseType(typeof(GrantResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(GrantResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -75,6 +77,7 @@ public sealed class GrantsController : ControllerBase
 
     /// <summary>One grant by id.</summary>
     [HttpGet("grants/{grantId:guid}")]
+    [Authorize(Policy = CampaignPolicies.CanReadGrants)]
     [ProducesResponseType(typeof(GrantResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<GrantResponse>> GetById(Guid grantId, CancellationToken ct)
@@ -91,6 +94,7 @@ public sealed class GrantsController : ControllerBase
 
     /// <summary>Voids a grant. Nothing is deleted; the record keeps the reason, the actor and the time.</summary>
     [HttpPost("grants/{grantId:guid}/void")]
+    [Authorize(Policy = CampaignPolicies.CanVoidGrant)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -109,6 +113,7 @@ public sealed class GrantsController : ControllerBase
 
     /// <summary>Lists grants. An agent sees their own; an admin sees everybody's.</summary>
     [HttpGet("grants")]
+    [Authorize(Policy = CampaignPolicies.CanReadGrants)]
     [ProducesResponseType(typeof(IReadOnlyList<GrantResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<IReadOnlyList<GrantResponse>>> List(

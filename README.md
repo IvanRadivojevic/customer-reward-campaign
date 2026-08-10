@@ -15,6 +15,31 @@ The solution integrates an external SOAP customer directory with CSV purchase re
 Dependencies point one way only: `Api -> Infrastructure -> Core` and `Api -> Core`. Because
 `Campaign.Core` references nothing, the business rules can be tested without a database or a web host.
 
+## Security
+
+Every endpoint requires a JWT bearer token except two: `/health`, and the development login at
+`POST /api/v1/auth/token`, which cannot require one because it is what hands tokens out. The role in
+the token decides what the rest may reach. In Development that login exchanges one of the seed
+accounts for a token, and the signing key comes from User Secrets:
+
+```bash
+dotnet user-secrets set "Auth:SigningKey" "<a long random development-only string>" --project Campaign.Api
+```
+
+| Account | Password | Role |
+|---|---|---|
+| `agent-1`, `agent-2`, `agent-3` | `<account>-password` | `agent` |
+| `admin-1` | `admin-1-password` | `admin` |
+| `integration-1` | `integration-1-password` | `integration` |
+
+These passwords unlock nothing but a local demo: the token endpoint is removed from the application
+outside Development, so those routes do not exist there. Moving to Microsoft Entra ID means setting
+`Auth:Authority` and `Auth:Audience` in configuration instead of a signing key - the handler then
+fetches the issuer's keys itself, and no code changes.
+
+Requests are limited to 100 per minute per token. There is no CORS: the API serves its own page from
+the same origin.
+
 ## Customer directory
 
 Customer data comes from an external SOAP service through the `ICustomerDirectory` port. Two

@@ -2,15 +2,25 @@ using System.Reflection;
 using Campaign.Api.Auth;
 using Campaign.Api.Errors;
 using Campaign.Api.Middleware;
+using Campaign.Api.RateLimiting;
 using Campaign.Core.Domain;
 using Campaign.Core.UseCases;
 using Campaign.Infrastructure;
 using Campaign.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    // The development login is not merely refused outside Development - its routes are not there.
+    if (!builder.Environment.IsDevelopment())
+    {
+        options.Conventions.Add(new RemoveDevelopmentOnlyControllers());
+    }
+});
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -21,16 +31,12 @@ builder.Services.AddScoped<VoidGrant>();
 builder.Services.AddScoped<GetQuota>();
 builder.Services.AddScoped<ListGrants>();
 
-// Until JWT bearer arrives, Development identifies the caller with request headers and every other
-// environment answers 401. See Campaign.Api/Auth.
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddScoped<ICallerContext, DevelopmentHeaderCallerContext>();
-}
-else
-{
-    builder.Services.AddScoped<ICallerContext, UnauthenticatedCallerContext>();
-}
+builder.Services.AddScoped<ICallerContext, ClaimsCallerContext>();
+builder.Services.AddScoped<DevelopmentTokenIssuer>();
+
+builder.Services.AddCampaignAuthentication(builder.Configuration);
+builder.Services.AddCampaignAuthorization();
+builder.Services.AddCampaignRateLimiting();
 
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -57,7 +63,24 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new() { Title = "Customer Reward Campaign", Version = "v1" });
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Customer Reward Campaign", Version = "v1" });
+
+    options.AddSecurityDefinition(
+        "bearer",
+        new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = ParameterLocation.Header,
+            Description = "Paste the access token from POST /api/v1/auth/token."
+        });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("bearer", document)] = []
+    });
 
     var documentation = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
     if (File.Exists(documentation))
@@ -84,8 +107,17 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
 
 app.UseHttpsRedirection();
+
+// Authentication first, so the rate limiter can count per token rather than per connection.
+app.UseAuthentication();
+app.UseRateLimiter();
+app.UseAuthorization();
 
 app.MapControllers();
 

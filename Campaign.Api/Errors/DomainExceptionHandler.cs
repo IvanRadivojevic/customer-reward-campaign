@@ -46,8 +46,11 @@ public sealed class DomainExceptionHandler : IExceptionHandler
         problem.Instance = httpContext.Request.Path;
 
         httpContext.Response.StatusCode = problem.Status ?? StatusCodes.Status500InternalServerError;
-        httpContext.Response.ContentType = "application/problem+json";
-        await httpContext.Response.WriteAsJsonAsync(problem, cancellationToken);
+        await httpContext.Response.WriteAsJsonAsync(
+            problem,
+            options: null,
+            contentType: ProblemResponse.ProblemContentType,
+            cancellationToken);
 
         return true;
     }

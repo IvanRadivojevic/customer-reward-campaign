@@ -1,9 +1,11 @@
 namespace Campaign.Api.Controllers;
 
+using Campaign.Api.Auth;
 using Campaign.Api.Contracts;
 using Campaign.Api.Errors;
 using Campaign.Core.Domain;
 using Campaign.Core.Ports;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
@@ -11,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 /// service or the in-memory one - is a matter of configuration, not of this controller.
 /// </summary>
 [ApiController]
+[Authorize(Policy = CampaignPolicies.CanReadCustomers)]
 [Route("api/v1/customers")]
 [Produces("application/json")]
 public sealed class CustomersController : ControllerBase

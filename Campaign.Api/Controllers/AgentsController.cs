@@ -3,9 +3,11 @@ namespace Campaign.Api.Controllers;
 using Campaign.Api.Auth;
 using Campaign.Api.Contracts;
 using Campaign.Core.UseCases;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
+[Authorize(Policy = CampaignPolicies.CanCreateGrant)]
 [Route("api/v1/agents")]
 [Produces("application/json")]
 public sealed class AgentsController : ControllerBase

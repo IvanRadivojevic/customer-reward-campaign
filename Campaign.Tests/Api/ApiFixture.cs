@@ -1,12 +1,17 @@
 namespace Campaign.Tests.Api;
 
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text;
 using Campaign.Api.Auth;
 using Campaign.Core.Domain;
 using Campaign.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 
 /// <summary>
 /// One hosted application shared by the API tests. Every test makes its own campaign and its own
@@ -14,6 +19,9 @@ using Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public sealed class ApiFixture : IAsyncLifetime
 {
+    /// <summary>Even here the clock is reached through TimeProvider, never directly.</summary>
+    private static readonly TimeProvider Clock = TimeProvider.System;
+
     public CampaignApiFactory Factory { get; private set; } = null!;
 
     public HttpClient Client { get; private set; } = null!;
@@ -59,6 +67,24 @@ public sealed class ApiFixture : IAsyncLifetime
         return new TestWorld(campaign.Id, agent.Id, subject, today);
     }
 
+    /// <summary>
+    /// Makes sure a seed subject really is an agent in this database. The seed only writes into an
+    /// empty database, and by the time these tests run it is not empty any more.
+    /// </summary>
+    public async Task EnsureAgentAsync(string subject)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        if (await db.Agents.AnyAsync(agent => agent.ExternalUserId == subject))
+        {
+            return;
+        }
+
+        db.Agents.Add(Agent.Create(Guid.NewGuid(), subject, subject));
+        await db.SaveChangesAsync();
+    }
+
     public async Task<int> CountGrantsAsync(Guid campaignId)
     {
         using var scope = Factory.Services.CreateScope();
@@ -67,51 +93,79 @@ public sealed class ApiFixture : IAsyncLifetime
         return await db.RewardGrants.CountAsync(grant => grant.CampaignId == campaignId);
     }
 
+    /// <summary>
+    /// Mints a token the application will accept, signed with the same key the test host is
+    /// configured with. Tests make their own agents, so they cannot use the seed accounts.
+    /// </summary>
+    public static string TokenFor(string subject, string role = CampaignRoles.Agent)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(CampaignApiFactory.SigningKey));
+
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = CampaignApiFactory.Issuer,
+            Audience = CampaignApiFactory.Audience,
+            Expires = Clock.GetUtcNow().AddMinutes(30).UtcDateTime,
+            Subject = new ClaimsIdentity(
+            [
+                new Claim(ClaimsCallerContext.SubjectClaim, subject),
+                new Claim(ClaimsCallerContext.RoleClaim, role)
+            ]),
+            SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
+        };
+
+        return new JsonWebTokenHandler().CreateToken(descriptor);
+    }
+
     public static HttpRequestMessage GrantRequest(
         Guid campaignId,
         string customerExternalId,
         string subject,
-        string idempotencyKey)
+        string idempotencyKey,
+        string role = CampaignRoles.Agent)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/campaigns/{campaignId}/grants")
         {
             Content = JsonContent.Create(new { customerExternalId })
         };
 
-        request.Headers.Add(DevelopmentHeaderCallerContext.SubjectHeader, subject);
+        Authorize(request, subject, role);
         request.Headers.Add("Idempotency-Key", idempotencyKey);
 
         return request;
     }
 
-    public static HttpRequestMessage Get(string url, string subject, bool asAdmin = false)
+    public static HttpRequestMessage Get(string url, string? subject, string role = CampaignRoles.Agent)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add(DevelopmentHeaderCallerContext.SubjectHeader, subject);
-
-        if (asAdmin)
-        {
-            request.Headers.Add(DevelopmentHeaderCallerContext.RoleHeader, "admin");
-        }
+        Authorize(request, subject, role);
 
         return request;
     }
 
-    public static HttpRequestMessage Post(string url, string subject, object? body = null, bool asAdmin = false)
+    public static HttpRequestMessage Post(
+        string url,
+        string? subject,
+        object? body = null,
+        string role = CampaignRoles.Agent)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(body ?? new { })
         };
 
-        request.Headers.Add(DevelopmentHeaderCallerContext.SubjectHeader, subject);
-
-        if (asAdmin)
-        {
-            request.Headers.Add(DevelopmentHeaderCallerContext.RoleHeader, "admin");
-        }
+        Authorize(request, subject, role);
 
         return request;
+    }
+
+    /// <summary>A null subject means no token at all, which is how the 401 case is reached.</summary>
+    private static void Authorize(HttpRequestMessage request, string? subject, string role)
+    {
+        if (subject is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", TokenFor(subject, role));
+        }
     }
 
     /// <summary>The machine readable error type from an RFC 7807 body.</summary>
